@@ -8,6 +8,7 @@ pipeline {
   }
 
   stages {
+
     stage('Docker Build') {
       steps {
         sh '''
@@ -38,6 +39,7 @@ pipeline {
       environment {
         DOCKER_PASS = credentials("DOCKER_HUB_PASS")
       }
+
       steps {
         sh '''
           docker login -u $DOCKER_ID -p "$DOCKER_PASS"
@@ -45,5 +47,30 @@ pipeline {
         '''
       }
     }
+
+    stage('Deployment in dev') {
+
+      environment {
+        KUBECONFIG = credentials("config")
+      }
+
+      steps {
+        sh '''
+          rm -Rf .kube
+          mkdir .kube
+          cat $KUBECONFIG > .kube/config
+
+          cp fastapi/values.yaml values.yml
+
+          sed -i "s+tag: \"\"+tag: ${DOCKER_TAG}+g" values.yml
+
+          helm upgrade --install app fastapi \
+            --values=values.yml \
+            --namespace dev \
+            --create-namespace
+        '''
+      }
+    }
+
   }
 }
